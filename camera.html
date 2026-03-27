@@ -16,7 +16,7 @@
   #status { font-size: 11px; letter-spacing: 2px; opacity: 0.5; margin-bottom: 12px; }
   #status.live { color: #00ff41; opacity: 1; }
   #ascii-out { font-family: monospace; font-size: 5px; line-height: 1.15; letter-spacing: 1.2px; white-space: pre; background: #000; padding: 12px; border-radius: 4px; border: 1px solid rgba(0,255,65,0.15); overflow: hidden; max-width: 700px; width: 100%; }
-  #saved-msg { margin-top: 12px; font-size: 12px; color: #ffd700; letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; }
+  #saved-msg { margin-top: 12px; font-size: 12px; letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; }
   #saved-msg.show { opacity: 1; }
   video, canvas { display: none; }
 </style>
@@ -29,15 +29,18 @@
   <button id="snapBtn" disabled>📷 Snap &amp; Save</button>
 </div>
 <div id="status">Offline</div>
-
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas"></canvas>
 <pre id="ascii-out">[ Click "Start Camera" to begin ]</pre>
-<div id="saved-msg">✓ Photo saved to gallery</div>
+<div id="saved-msg" style="color:#ffd700;">✓ Photo saved to gallery</div>
 
 <script>
+const BIN_ID = '69c615a3b7ec241ddcaa75a2';
+const API_KEY = '$2a$10$qfLFjE./X0/Wk78uVe3mgekvxFDJK7HRh8W29j/DehxdcFQdCMobS';
+const BIN_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
 const CHARS = '@#S%?*+;:,. ';
 let stream = null, animId = null;
+
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -48,8 +51,7 @@ const status = document.getElementById('status');
 const savedMsg = document.getElementById('saved-msg');
 
 function toAscii(cols) {
-  const charAspect = 2.1;
-  const rows = Math.floor(cols / charAspect * (video.videoHeight / video.videoWidth));
+  const rows = Math.floor(cols / 2.1 * (video.videoHeight / video.videoWidth));
   canvas.width = cols; canvas.height = rows;
   ctx.save(); ctx.translate(cols, 0); ctx.scale(-1, 1);
   ctx.drawImage(video, 0, 0, cols, rows);
@@ -59,18 +61,38 @@ function toAscii(cols) {
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const i = (y * cols + x) * 4;
-      const brightness = (0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) / 255;
-      const idx = Math.floor((1 - brightness) * (CHARS.length - 1));
-      result += CHARS[Math.max(0, Math.min(idx, CHARS.length - 1))];
+      const b = (0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) / 255;
+      result += CHARS[Math.max(0, Math.min(Math.floor((1-b)*(CHARS.length-1)), CHARS.length-1))];
     }
     result += '\n';
   }
   return result;
 }
 
-function render() {
-  out.textContent = toAscii(120);
-  animId = requestAnimationFrame(render);
+function render() { out.textContent = toAscii(120); animId = requestAnimationFrame(render); }
+
+async function savePhoto(ascii) {
+  savedMsg.textContent = '⏳ Saving...';
+  savedMsg.style.color = '#aaa';
+  savedMsg.classList.add('show');
+  try {
+    const getRes = await fetch(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    const data = await getRes.json();
+    const photos = (data.record && data.record.photos) ? data.record.photos : [];
+    photos.unshift({ ascii, time: Date.now() });
+    if (photos.length > 20) photos.pop();
+    await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+      body: JSON.stringify({ photos })
+    });
+    savedMsg.textContent = '✓ Saved to gallery';
+    savedMsg.style.color = '#ffd700';
+  } catch(e) {
+    savedMsg.textContent = '✕ Save failed';
+    savedMsg.style.color = '#ff4444';
+  }
+  setTimeout(() => savedMsg.classList.remove('show'), 2500);
 }
 
 startBtn.addEventListener('click', async () => {
@@ -93,19 +115,11 @@ startBtn.addEventListener('click', async () => {
     render();
   } catch(e) {
     status.textContent = 'Access denied';
-    out.textContent = '[ Camera access denied — please allow camera permission ]';
+    out.textContent = '[ Camera access denied ]';
   }
 });
 
-snapBtn.addEventListener('click', () => {
-  const ascii = toAscii(120);
-  const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
-  photos.unshift({ ascii, time: Date.now() });
-  if (photos.length > 20) photos.pop();
-  localStorage.setItem('ascii_photos', JSON.stringify(photos));
-  savedMsg.classList.add('show');
-  setTimeout(() => savedMsg.classList.remove('show'), 2000);
-});
+snapBtn.addEventListener('click', () => savePhoto(toAscii(120)));
 </script>
 </body>
 </html>

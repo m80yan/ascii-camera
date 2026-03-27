@@ -11,88 +11,96 @@
   #live-btn { background: transparent; border: 1px solid #ffd700; color: #ffd700; font-family: monospace; font-size: 11px; padding: 6px 16px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; text-decoration: none; display: inline-block; }
   #live-btn:hover { background: rgba(255,215,0,0.1); }
   #status { font-size: 11px; letter-spacing: 2px; opacity: 0.4; margin-bottom: 16px; }
-  #pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #00ff41; margin-right: 6px; animation: pulse 2s infinite; }
+  #pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #00ff41; margin-right: 6px; animation: pulse 2s infinite; vertical-align: middle; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
-  #empty { text-align: center; opacity: 0.3; margin-top: 80px; font-size: 13px; letter-spacing: 2px; line-height: 2; }
-  #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  #empty { text-align: center; opacity: 0.3; margin-top: 80px; font-size: 13px; letter-spacing: 2px; line-height: 2.5; }
+  #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
   .photo-card { background: #000; border: 1px solid rgba(0,255,65,0.15); border-radius: 4px; overflow: hidden; }
-  .photo-card pre { font-family: monospace; font-size: 3.5px; line-height: 1.15; letter-spacing: 0.8px; white-space: pre; color: #00ff41; padding: 8px; overflow: hidden; }
+  .photo-card pre { font-family: monospace; font-size: 3px; line-height: 1.15; letter-spacing: 0.8px; white-space: pre; color: #00ff41; padding: 8px; overflow: hidden; }
   .photo-meta { padding: 6px 10px; border-top: 1px solid rgba(0,255,65,0.1); display: flex; justify-content: space-between; align-items: center; }
   .photo-time { font-size: 10px; opacity: 0.4; letter-spacing: 1px; }
-  .delete-btn { background: transparent; border: none; color: #ff4444; font-family: monospace; font-size: 10px; cursor: pointer; opacity: 0.5; letter-spacing: 1px; }
+  .delete-btn { background: transparent; border: none; color: #ff4444; font-family: monospace; font-size: 10px; cursor: pointer; opacity: 0.5; letter-spacing: 1px; padding: 0; }
   .delete-btn:hover { opacity: 1; }
-  #count { font-size: 11px; opacity: 0.4; letter-spacing: 1px; }
 </style>
 </head>
 <body>
 
 <div id="header">
   <h1>ASCII Gallery</h1>
-  <a id="live-btn" href="camera.html" target="_blank">📷 Open Camera →</a>
+  <a id="live-btn" href="https://ascii-camera-ten.vercel.app/camera.html" target="_blank">📷 Open Camera →</a>
 </div>
-<div id="status">
-  <span id="pulse"></span>Polling for new photos...
-</div>
-
+<div id="status"><span id="pulse"></span>Live</div>
 <div id="empty" style="display:none">
   No photos yet.<br>
-  Open the camera window and snap a photo.<br>
+  Open the camera and snap a photo.<br>
   It will appear here automatically.
 </div>
-
 <div id="gallery"></div>
 
 <script>
+const BIN_ID = '69c615a3b7ec241ddcaa75a2';
+const API_KEY = '$2a$10$qfLFjE./X0/Wk78uVe3mgekvxFDJK7HRh8W29j/DehxdcFQdCMobS';
+const BIN_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
 const gallery = document.getElementById('gallery');
 const empty = document.getElementById('empty');
+const status = document.getElementById('status');
+const pulse = document.getElementById('pulse');
 let lastCount = -1;
 
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s/60)}m ago`;
-  return `${Math.floor(s/3600)}h ago`;
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  return Math.floor(s/3600) + 'h ago';
 }
 
-function render() {
-  const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
-  if (photos.length === lastCount) return;
-  lastCount = photos.length;
+async function deletePhoto(i) {
+  try {
+    const res = await fetch(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    const data = await res.json();
+    const photos = data.record.photos || [];
+    photos.splice(i, 1);
+    await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+      body: JSON.stringify({ photos })
+    });
+    lastCount = -1;
+    poll();
+  } catch(e) { console.error(e); }
+}
+window.deletePhoto = deletePhoto;
 
-  if (photos.length === 0) {
-    empty.style.display = 'block';
-    gallery.innerHTML = '';
-    return;
-  }
-
-  empty.style.display = 'none';
-  gallery.innerHTML = photos.map((p, i) => `
-    <div class="photo-card">
-      <pre>${p.ascii}</pre>
-      <div class="photo-meta">
-        <span class="photo-time">${timeAgo(p.time)}</span>
-        <button class="delete-btn" onclick="deletePhoto(${i})">✕ delete</button>
+async function poll() {
+  try {
+    const res = await fetch(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    const data = await res.json();
+    const photos = (data.record && data.record.photos) ? data.record.photos : [];
+    if (photos.length === lastCount) return;
+    lastCount = photos.length;
+    pulse.style.background = '#00ff41';
+    if (photos.length === 0) {
+      empty.style.display = 'block';
+      gallery.innerHTML = '';
+      return;
+    }
+    empty.style.display = 'none';
+    gallery.innerHTML = photos.map((p, i) => `
+      <div class="photo-card">
+        <pre>${p.ascii}</pre>
+        <div class="photo-meta">
+          <span class="photo-time">${timeAgo(p.time)}</span>
+          <button class="delete-btn" onclick="deletePhoto(${i})">✕ delete</button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+  } catch(e) {
+    pulse.style.background = '#ff4444';
+  }
 }
 
-window.deletePhoto = (i) => {
-  const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
-  photos.splice(i, 1);
-  localStorage.setItem('ascii_photos', JSON.stringify(photos));
-  lastCount = -1;
-  render();
-};
-
-render();
-setInterval(render, 1500);
-setInterval(() => {
-  document.querySelectorAll('.photo-time').forEach((el, i) => {
-    const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
-    if (photos[i]) el.textContent = timeAgo(photos[i].time);
-  });
-}, 10000);
+poll();
+setInterval(poll, 3000);
 </script>
 </body>
 </html>
