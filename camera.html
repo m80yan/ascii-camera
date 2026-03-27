@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ASCII Camera - Live</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0a; color: #00ff41; font-family: monospace; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
+  h1 { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.6; }
+  #controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 16px; }
+  button { background: transparent; border: 1px solid #00ff41; color: #00ff41; font-family: monospace; font-size: 12px; padding: 8px 20px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; }
+  button:hover { background: rgba(0,255,65,0.1); }
+  #snapBtn { border-color: #ffd700; color: #ffd700; }
+  #snapBtn:hover { background: rgba(255,215,0,0.1); }
+  #snapBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+  #status { font-size: 11px; letter-spacing: 2px; opacity: 0.5; margin-bottom: 12px; }
+  #status.live { color: #00ff41; opacity: 1; }
+  #ascii-out { font-family: monospace; font-size: 5px; line-height: 1.15; letter-spacing: 1.2px; white-space: pre; background: #000; padding: 12px; border-radius: 4px; border: 1px solid rgba(0,255,65,0.15); overflow: hidden; max-width: 700px; width: 100%; }
+  #saved-msg { margin-top: 12px; font-size: 12px; color: #ffd700; letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; }
+  #saved-msg.show { opacity: 1; }
+  video, canvas { display: none; }
+</style>
+</head>
+<body>
+
+<h1>ASCII Camera — Live Mode</h1>
+<div id="controls">
+  <button id="startBtn">Start Camera</button>
+  <button id="snapBtn" disabled>📷 Snap &amp; Save</button>
+</div>
+<div id="status">Offline</div>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+<pre id="ascii-out">[ Click "Start Camera" to begin ]</pre>
+<div id="saved-msg">✓ Photo saved to gallery</div>
+
+<script>
+const CHARS = '@#S%?*+;:,. ';
+let stream = null, animId = null;
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const out = document.getElementById('ascii-out');
+const startBtn = document.getElementById('startBtn');
+const snapBtn = document.getElementById('snapBtn');
+const status = document.getElementById('status');
+const savedMsg = document.getElementById('saved-msg');
+
+function toAscii(cols) {
+  const charAspect = 2.1;
+  const rows = Math.floor(cols / charAspect * (video.videoHeight / video.videoWidth));
+  canvas.width = cols; canvas.height = rows;
+  ctx.save(); ctx.translate(cols, 0); ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, cols, rows);
+  ctx.restore();
+  const pixels = ctx.getImageData(0, 0, cols, rows).data;
+  let result = '';
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const i = (y * cols + x) * 4;
+      const brightness = (0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) / 255;
+      const idx = Math.floor((1 - brightness) * (CHARS.length - 1));
+      result += CHARS[Math.max(0, Math.min(idx, CHARS.length - 1))];
+    }
+    result += '\n';
+  }
+  return result;
+}
+
+function render() {
+  out.textContent = toAscii(120);
+  animId = requestAnimationFrame(render);
+}
+
+startBtn.addEventListener('click', async () => {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null; cancelAnimationFrame(animId);
+    startBtn.textContent = 'Start Camera';
+    snapBtn.disabled = true;
+    status.textContent = 'Offline'; status.className = '';
+    out.textContent = '[ Click "Start Camera" to begin ]';
+    return;
+  }
+  try {
+    status.textContent = 'Requesting...';
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    video.srcObject = stream; await video.play();
+    startBtn.textContent = 'Stop Camera';
+    snapBtn.disabled = false;
+    status.textContent = 'Live ●'; status.className = 'live';
+    render();
+  } catch(e) {
+    status.textContent = 'Access denied';
+    out.textContent = '[ Camera access denied — please allow camera permission ]';
+  }
+});
+
+snapBtn.addEventListener('click', () => {
+  const ascii = toAscii(120);
+  const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
+  photos.unshift({ ascii, time: Date.now() });
+  if (photos.length > 20) photos.pop();
+  localStorage.setItem('ascii_photos', JSON.stringify(photos));
+  savedMsg.classList.add('show');
+  setTimeout(() => savedMsg.classList.remove('show'), 2000);
+});
+</script>
+</body>
+</html>

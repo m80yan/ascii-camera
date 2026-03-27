@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ASCII Camera - Gallery</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0a; color: #00ff41; font-family: monospace; min-height: 100vh; padding: 24px 16px; }
+  #header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  h1 { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; opacity: 0.6; }
+  #live-btn { background: transparent; border: 1px solid #ffd700; color: #ffd700; font-family: monospace; font-size: 11px; padding: 6px 16px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; text-decoration: none; display: inline-block; }
+  #live-btn:hover { background: rgba(255,215,0,0.1); }
+  #status { font-size: 11px; letter-spacing: 2px; opacity: 0.4; margin-bottom: 16px; }
+  #pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #00ff41; margin-right: 6px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  #empty { text-align: center; opacity: 0.3; margin-top: 80px; font-size: 13px; letter-spacing: 2px; line-height: 2; }
+  #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .photo-card { background: #000; border: 1px solid rgba(0,255,65,0.15); border-radius: 4px; overflow: hidden; }
+  .photo-card pre { font-family: monospace; font-size: 3.5px; line-height: 1.15; letter-spacing: 0.8px; white-space: pre; color: #00ff41; padding: 8px; overflow: hidden; }
+  .photo-meta { padding: 6px 10px; border-top: 1px solid rgba(0,255,65,0.1); display: flex; justify-content: space-between; align-items: center; }
+  .photo-time { font-size: 10px; opacity: 0.4; letter-spacing: 1px; }
+  .delete-btn { background: transparent; border: none; color: #ff4444; font-family: monospace; font-size: 10px; cursor: pointer; opacity: 0.5; letter-spacing: 1px; }
+  .delete-btn:hover { opacity: 1; }
+  #count { font-size: 11px; opacity: 0.4; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>ASCII Gallery</h1>
+  <a id="live-btn" href="camera.html" target="_blank">📷 Open Camera →</a>
+</div>
+<div id="status">
+  <span id="pulse"></span>Polling for new photos...
+</div>
+
+<div id="empty" style="display:none">
+  No photos yet.<br>
+  Open the camera window and snap a photo.<br>
+  It will appear here automatically.
+</div>
+
+<div id="gallery"></div>
+
+<script>
+const gallery = document.getElementById('gallery');
+const empty = document.getElementById('empty');
+let lastCount = -1;
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  return `${Math.floor(s/3600)}h ago`;
+}
+
+function render() {
+  const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
+  if (photos.length === lastCount) return;
+  lastCount = photos.length;
+
+  if (photos.length === 0) {
+    empty.style.display = 'block';
+    gallery.innerHTML = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  gallery.innerHTML = photos.map((p, i) => `
+    <div class="photo-card">
+      <pre>${p.ascii}</pre>
+      <div class="photo-meta">
+        <span class="photo-time">${timeAgo(p.time)}</span>
+        <button class="delete-btn" onclick="deletePhoto(${i})">✕ delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.deletePhoto = (i) => {
+  const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
+  photos.splice(i, 1);
+  localStorage.setItem('ascii_photos', JSON.stringify(photos));
+  lastCount = -1;
+  render();
+};
+
+render();
+setInterval(render, 1500);
+setInterval(() => {
+  document.querySelectorAll('.photo-time').forEach((el, i) => {
+    const photos = JSON.parse(localStorage.getItem('ascii_photos') || '[]');
+    if (photos[i]) el.textContent = timeAgo(photos[i].time);
+  });
+}, 10000);
+</script>
+</body>
+</html>
