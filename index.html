@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASCII Camera</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    color: #00ff41;
+    font-family: monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    opacity: 0.7;
+  }
+  #controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  button {
+    background: transparent;
+    border: 1px solid #00ff41;
+    color: #00ff41;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 8px 20px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: background 0.2s;
+  }
+  button:hover { background: rgba(0,255,65,0.1); }
+  button.stop { border-color: #ff4444; color: #ff4444; }
+  button.stop:hover { background: rgba(255,68,68,0.1); }
+  label {
+    font-size: 12px;
+    letter-spacing: 1px;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  select {
+    background: transparent;
+    border: 1px solid rgba(0,255,65,0.3);
+    color: #00ff41;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  select option { background: #111; }
+  #status {
+    font-size: 12px;
+    letter-spacing: 2px;
+    opacity: 0.5;
+    text-transform: uppercase;
+  }
+  #status.live { color: #00ff41; opacity: 1; animation: blink 1.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  #ascii-out {
+    font-family: monospace;
+    font-size: 5.5px;
+    line-height: 1.15;
+    letter-spacing: 1.2px;
+    white-space: pre;
+    width: 100%;
+    max-width: 900px;
+    background: #000;
+    padding: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,255,65,0.15);
+    overflow: hidden;
+  }
+  video, canvas { display: none; }
+</style>
+</head>
+<body>
+
+<h1>ASCII Camera</h1>
+
+<div id="controls">
+  <button id="startBtn">Start Camera</button>
+  <label>Color
+    <select id="colorPicker">
+      <option value="#00ff41">Matrix green</option>
+      <option value="#ffffff">White</option>
+      <option value="#ffd700">Amber</option>
+      <option value="#00cfff">Cyan</option>
+      <option value="#ff6b6b">Red</option>
+      <option value="#cc99ff">Purple</option>
+    </select>
+  </label>
+  <label>Style
+    <select id="densityPicker">
+      <option value="detailed">Detailed</option>
+      <option value="simple">Simple</option>
+      <option value="blocks">Blocks</option>
+      <option value="binary">Binary</option>
+    </select>
+  </label>
+  <label>Resolution
+    <select id="resPicker">
+      <option value="120">120 cols</option>
+      <option value="80">80 cols</option>
+      <option value="160">160 cols</option>
+      <option value="200">200 cols</option>
+    </select>
+  </label>
+  <span id="status">Offline</span>
+</div>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+<pre id="ascii-out">[ Click "Start Camera" to begin ]</pre>
+
+<script>
+const CHARS = {
+  detailed: '@#S%?*+;:,. ',
+  simple:   '@%+:. ',
+  blocks:   '█▓▒░ ',
+  binary:   '10 '
+};
+
+let stream = null;
+let animId = null;
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const out = document.getElementById('ascii-out');
+const startBtn = document.getElementById('startBtn');
+const status = document.getElementById('status');
+const colorPicker = document.getElementById('colorPicker');
+const densityPicker = document.getElementById('densityPicker');
+const resPicker = document.getElementById('resPicker');
+
+colorPicker.addEventListener('change', () => {
+  out.style.color = colorPicker.value;
+});
+
+function render() {
+  const cols = parseInt(resPicker.value) || 120;
+  const charAspect = 2.1;
+  const rows = Math.floor(cols / charAspect * (video.videoHeight / video.videoWidth));
+
+  canvas.width = cols;
+  canvas.height = rows;
+
+  ctx.save();
+  ctx.translate(cols, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, cols, rows);
+  ctx.restore();
+
+  const imageData = ctx.getImageData(0, 0, cols, rows);
+  const pixels = imageData.data;
+  const chars = CHARS[densityPicker.value] || CHARS.detailed;
+  let result = '';
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const i = (y * cols + x) * 4;
+      const r = pixels[i], g = pixels[i+1], b = pixels[i+2];
+      const brightness = (0.299*r + 0.587*g + 0.114*b) / 255;
+      const idx = Math.floor((1 - brightness) * (chars.length - 1));
+      result += chars[Math.max(0, Math.min(idx, chars.length - 1))];
+    }
+    result += '\n';
+  }
+
+  out.textContent = result;
+  animId = requestAnimationFrame(render);
+}
+
+startBtn.addEventListener('click', async () => {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    cancelAnimationFrame(animId);
+    startBtn.textContent = 'Start Camera';
+    startBtn.classList.remove('stop');
+    status.textContent = 'Offline';
+    status.classList.remove('live');
+    out.textContent = '[ Click "Start Camera" to begin ]';
+    return;
+  }
+
+  try {
+    status.textContent = 'Requesting...';
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    video.srcObject = stream;
+    await video.play();
+    startBtn.textContent = 'Stop Camera';
+    startBtn.classList.add('stop');
+    status.textContent = 'Live';
+    status.classList.add('live');
+    out.style.color = colorPicker.value;
+    render();
+  } catch(e) {
+    status.textContent = 'Access denied';
+    out.textContent = '[ Camera access denied ]\n\nPlease allow camera permission in your browser settings\nand reload the page.';
+  }
+});
+</script>
+</body>
+</html>
