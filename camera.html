@@ -131,6 +131,7 @@
     min-height: 0;
     margin-bottom: 4px;
   }
+  /* 等宽字宽≠行高：行高与字号一致便于测量为「准方格」比例 */
   #ascii-out { font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 6px; line-height: 6px; letter-spacing: 0; white-space: pre; display: inline-block; }
   #saved-msg { margin: 4px 0 0; font-size: 12px; letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; color: #ffd700; min-height: 20px; text-align: center; width: 100%; }
   #saved-msg.show { opacity: 1; }
@@ -208,12 +209,10 @@
 const BIN_ID = '69c615a3b7ec241ddcaa75a2';
 const API_KEY = '$2a$10$qfLFjE./X0/Wk78uVe3mgekvxFDJK7HRh8W29j/DehxdcFQdCMobS';
 const BIN_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
-/**
- * 等宽字体下单格约宽/高≈0.55（随字体略变）。用于从「画面宽高比」换算采样行数，使取景框里 ASCII 的视觉比例与所选 Aspect 一致。
- */
-const CELL_ASPECT = 0.55;
-/** 与 `#ascii-out` 的 `font-size` 一致，用于按 1:1 行数固定取景框高度 */
-const ASCII_FONT_PX = 6;
+/** 测量失败时的字宽/行高比回退值 */
+const CELL_ASPECT_FALLBACK = 0.55;
+/** @type {{ cellAspect: number, lineHeightPx: number } | null} */
+let asciiCellMetricsCache = null;
 /** 使用块符与点阵，减轻笔画字符宽高差带来的形变 */
 const CHAR_SETS = {
   detailed: '\u2588\u2593\u2592\u2591\u00B7 ',
@@ -241,17 +240,78 @@ const flashToggle    = document.getElementById('flashToggle');
 let snapCountdownActive = false;
 
 /**
+ * 测量 `#ascii-out` 实际单格宽高比（字宽÷行高），使采样列×行与屏幕像素块对齐；1:1 时画面呈正方形。
+ * @returns {{ cellAspect: number, lineHeightPx: number }}
+ */
+function getAsciiCellMetrics() {
+  if (asciiCellMetricsCache) return asciiCellMetricsCache;
+  const m = measureMonospaceCellFromElement(out);
+  asciiCellMetricsCache = m;
+  return m;
+}
+
+/**
+ * @param {HTMLElement} el 与 ASCII 输出使用相同样式的元素（如 `#ascii-out`）
+ * @returns {{ cellAspect: number, lineHeightPx: number }}
+ */
+function measureMonospaceCellFromElement(el) {
+  const cs = getComputedStyle(el);
+  const fontSize = parseFloat(cs.fontSize) || 6;
+  let lineHeightPx = parseFloat(cs.lineHeight);
+  if (!Number.isFinite(lineHeightPx) || cs.lineHeight === 'normal' || String(cs.lineHeight).endsWith('%')) {
+    lineHeightPx = fontSize;
+  }
+  const fontShorthand = cs.font && cs.font.length > 2 ? cs.font : [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily].filter(Boolean).join(' ');
+  let charW = 0;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.font = fontShorthand;
+    charW = ctx.measureText('0').width;
+  }
+  if (!charW || charW <= 0) {
+    const probe = document.createElement('span');
+    probe.setAttribute('style', [
+      'position:absolute', 'left:-9999px', 'visibility:hidden', 'white-space:pre',
+      'font:' + fontShorthand, 'font-family:' + cs.fontFamily, 'font-size:' + cs.fontSize,
+      'font-weight:' + cs.fontWeight, 'line-height:' + cs.lineHeight, 'letter-spacing:' + cs.letterSpacing
+    ].join(';'));
+    probe.textContent = '0';
+    document.body.appendChild(probe);
+    charW = probe.offsetWidth;
+    document.body.removeChild(probe);
+  }
+  const cellAspect = charW > 0 && lineHeightPx > 0 ? charW / lineHeightPx : CELL_ASPECT_FALLBACK;
+  return { cellAspect, lineHeightPx };
+}
+
+function invalidateAsciiCellMetrics() {
+  asciiCellMetricsCache = null;
+}
+
+/**
  * 取景框 `#ascii-wrap` 最小高度：按 **3:4 竖屏** 所需行数（自拍竖屏时最高），避免切换 Aspect 时高度抖动。
  */
 function updateAsciiWrapMinHeight() {
   const cols = parseInt(resPicker.value, 10) || 120;
-  const rows34 = Math.max(1, Math.round((cols * CELL_ASPECT) / (3 / 4)));
-  const innerPx = rows34 * ASCII_FONT_PX;
+  const { cellAspect, lineHeightPx } = getAsciiCellMetrics();
+  const rows34 = Math.max(1, Math.round((cols * cellAspect) / (3 / 4)));
+  const innerPx = rows34 * lineHeightPx;
   asciiWrap.style.minHeight = (innerPx + 24) + 'px';
 }
 
 colorPicker.addEventListener('change', () => { out.style.color = colorPicker.value; });
 resPicker.addEventListener('change', updateAsciiWrapMinHeight);
+window.addEventListener('resize', function () {
+  invalidateAsciiCellMetrics();
+  updateAsciiWrapMinHeight();
+});
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function () {
+    invalidateAsciiCellMetrics();
+    updateAsciiWrapMinHeight();
+  });
+}
 updateAsciiWrapMinHeight();
 
 /**
@@ -276,17 +336,18 @@ function getAspectRatio() {
 }
 
 /**
- * 将当前视频帧转为 ASCII。采样网格行数按 `CELL_ASPECT` 修正，使屏幕上「列×行」的视觉宽高比接近所选画面比例。
+ * 将当前视频帧转为 ASCII。行数 = cols×(字宽/行高)÷画面宽高比，使像素块与等宽字格对齐。
  * @param {number} cols 列数
  * @returns {string} ASCII 文本
  */
 function toAscii(cols) {
   if (!video.videoWidth || !video.videoHeight) return '';
   const chars = getChars();
+  const { cellAspect } = getAsciiCellMetrics();
   const forcedAspect = getAspectRatio();
   const nativeAspect = video.videoWidth / video.videoHeight;
   const aspect = forcedAspect || nativeAspect;
-  const rows = Math.max(1, Math.round(cols * CELL_ASPECT / aspect));
+  const rows = Math.max(1, Math.round((cols * cellAspect) / aspect));
   canvas.width = cols; canvas.height = rows;
   ctx.save();
   ctx.translate(cols, 0); ctx.scale(-1, 1);

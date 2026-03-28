@@ -70,7 +70,7 @@
   #lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 100; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
   #lightbox.open { display: flex; }
   #lightbox-inner { max-width: 90vw; max-height: 90vh; overflow: auto; background: #000; border: 1px solid rgba(0,255,65,0.2); border-radius: 4px; padding: 16px; }
-  #lightbox-pre { font-family: monospace, ui-monospace, "Courier New", monospace; letter-spacing: 0; white-space: pre; margin: 0; }
+  #lightbox-pre { font-family: monospace, ui-monospace, "Courier New", monospace; letter-spacing: 0; white-space: pre; margin: 0; display: inline-block; width: max-content; max-width: 100%; line-height: 1; }
   #lightbox-close { position: fixed; top: 20px; right: 24px; background: transparent; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 4px 12px; cursor: pointer; letter-spacing: 2px; }
   #lightbox-close:hover { background: rgba(0,255,65,0.1); }
   #confirm-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; align-items: center; justify-content: center; }
@@ -90,7 +90,8 @@
   #upload-modal-inner h2 { font-size: 12px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; opacity: 0.9; margin: 0 0 14px; text-align: left; color: #00ff41; }
   #upload-modal-body { display: flex; flex-direction: column; gap: 14px; }
   #upload-preview-wrap { background: #000; border: 1px solid rgba(0,255,65,0.25); border-radius: 4px; padding: 12px; min-height: 220px; max-height: min(52vh, 460px); overflow: auto; display: flex; justify-content: center; align-items: center; width: 100%; box-sizing: border-box; }
-  #upload-preview-pre { font-family: monospace, ui-monospace, "Courier New", monospace; white-space: pre; letter-spacing: 0; margin: 0; }
+  /* inline-block + line-height:1 + 实测宽高缩放，避免块字符与「0」字宽假设不一致导致 1:1 被压扁 */
+  #upload-preview-pre { font-family: monospace, ui-monospace, "Courier New", monospace; white-space: pre; letter-spacing: 0; margin: 0; display: inline-block; width: max-content; max-width: 100%; vertical-align: middle; line-height: 1; }
   #upload-editor-controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 16px; width: 100%; align-items: stretch; }
   .upload-ctl { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-items: stretch; }
   .upload-ctl-label { font-size: 11px; opacity: 0.55; letter-spacing: 1px; text-align: left; width: 100%; }
@@ -98,15 +99,28 @@
   @media (max-width: 640px) {
     #upload-editor-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  #upload-modal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 4px; padding-top: 4px; }
-  #upload-save-btn { border: 1px solid #ffd700; color: #ffd700; background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 8px 18px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; }
+  /* 与上方四列同网格：Cancel 仅内容宽、右缘对齐 Resolution；Add 宽度=Aspect 下拉同列同宽（不超出该列） */
+  #upload-modal-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 16px; align-items: start; margin-top: 4px; padding-top: 4px; width: 100%; box-sizing: border-box; }
+  .upload-actions-placeholder { min-height: 0; pointer-events: none; }
+  .upload-action-col-res { display: flex; justify-content: flex-end; align-items: stretch; min-width: 0; }
+  .upload-action-col-aspect { min-width: 0; }
+  #upload-save-btn { border: 1px solid #ffd700; color: #ffd700; background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; line-height: 1.25; padding: 6px 8px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; display: block; width: 100%; max-width: 100%; box-sizing: border-box; }
   #upload-save-btn:hover { background: rgba(255,215,0,0.08); }
-  #upload-cancel-btn { border: 1px solid rgba(0,255,65,0.4); color: #00ff41; background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 8px 18px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; }
+  #upload-cancel-btn { border: 1px solid rgba(0,255,65,0.4); color: #00ff41; background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; line-height: 1.25; padding: 6px 10px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; width: auto; max-width: 100%; flex: 0 0 auto; box-sizing: border-box; }
   #upload-cancel-btn:hover { background: rgba(0,255,65,0.08); }
+  @media (max-width: 640px) {
+    #upload-modal-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .upload-actions-placeholder { display: none; }
+    .upload-action-col-res { grid-column: 1; }
+    .upload-action-col-aspect { grid-column: 2; }
+  }
   #upload-src-img { display: none; }
+  /* 与缩略图/预览 pre 同字体，用于测量字宽÷行高 */
+  .gallery-cell-probe { position: absolute; left: -9999px; top: 0; visibility: hidden; margin: 0; padding: 0; border: 0; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 6px; line-height: 6px; letter-spacing: 0; white-space: pre; }
 </style>
 </head>
 <body>
+<pre id="gallery-cell-probe" class="gallery-cell-probe" aria-hidden="true">&#x2588;</pre>
 <div id="header">
   <h1>Gallery</h1>
   <div id="header-actions">
@@ -167,8 +181,14 @@
         </div>
       </div>
       <div id="upload-modal-actions">
-        <button type="button" id="upload-cancel-btn">Cancel</button>
-        <button type="button" id="upload-save-btn">Add to gallery</button>
+        <span class="upload-actions-placeholder" aria-hidden="true"></span>
+        <span class="upload-actions-placeholder" aria-hidden="true"></span>
+        <div class="upload-action-col-res">
+          <button type="button" id="upload-cancel-btn">Cancel</button>
+        </div>
+        <div class="upload-action-col-aspect">
+          <button type="button" id="upload-save-btn">Add to gallery</button>
+        </div>
       </div>
     </div>
   </div>
@@ -190,8 +210,64 @@
 const BIN_ID = '69c615a3b7ec241ddcaa75a2';
 const API_KEY = '$2a$10$qfLFjE./X0/Wk78uVe3mgekvxFDJK7HRh8W29j/DehxdcFQdCMobS';
 const BIN_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
-/** 与 camera.html 一致：等宽字体下单格宽/高约 0.55，用于行数与预览缩放 */
-const CELL_ASPECT = 0.55;
+/** 测量失败时的字宽/行高比回退值 */
+const CELL_ASPECT_FALLBACK = 0.55;
+/** @type {{ cellAspect: number, lineHeightPx: number } | null} */
+let galleryCellMetricsCache = null;
+
+/**
+ * 测量与画廊 pre 一致的字格比例，用于行数与缩略图/灯箱缩放。
+ * @returns {{ cellAspect: number, lineHeightPx: number }}
+ */
+function getGalleryAsciiCellMetrics() {
+  if (galleryCellMetricsCache) return galleryCellMetricsCache;
+  const probe = document.getElementById('gallery-cell-probe');
+  if (!probe) {
+    galleryCellMetricsCache = { cellAspect: CELL_ASPECT_FALLBACK, lineHeightPx: 6 };
+    return galleryCellMetricsCache;
+  }
+  galleryCellMetricsCache = measureMonospaceCellFromElement(probe);
+  return galleryCellMetricsCache;
+}
+
+function invalidateGalleryCellMetrics() {
+  galleryCellMetricsCache = null;
+}
+
+/**
+ * @param {HTMLElement} el 与 ASCII 显示同族字体的元素
+ * @returns {{ cellAspect: number, lineHeightPx: number }}
+ */
+function measureMonospaceCellFromElement(el) {
+  const cs = getComputedStyle(el);
+  const fontSize = parseFloat(cs.fontSize) || 6;
+  let lineHeightPx = parseFloat(cs.lineHeight);
+  if (!Number.isFinite(lineHeightPx) || cs.lineHeight === 'normal' || String(cs.lineHeight).endsWith('%')) {
+    lineHeightPx = fontSize;
+  }
+  const fontShorthand = cs.font && cs.font.length > 2 ? cs.font : [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily].filter(Boolean).join(' ');
+  let charW = 0;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.font = fontShorthand;
+    charW = Math.max(ctx.measureText('0').width, ctx.measureText('\u2588').width);
+  }
+  if (!charW || charW <= 0) {
+    const probe = document.createElement('span');
+    probe.setAttribute('style', [
+      'position:absolute', 'left:-9999px', 'visibility:hidden', 'white-space:pre',
+      'font:' + fontShorthand, 'font-family:' + cs.fontFamily, 'font-size:' + cs.fontSize,
+      'font-weight:' + cs.fontWeight, 'line-height:' + cs.lineHeight, 'letter-spacing:' + cs.letterSpacing
+    ].join(';'));
+    probe.textContent = '\u2588';
+    document.body.appendChild(probe);
+    charW = probe.offsetWidth;
+    document.body.removeChild(probe);
+  }
+  const cellAspect = charW > 0 && lineHeightPx > 0 ? charW / lineHeightPx : CELL_ASPECT_FALLBACK;
+  return { cellAspect, lineHeightPx };
+}
 const CHAR_SETS = {
   detailed: '\u2588\u2593\u2592\u2591\u00B7 ',
   simple:   '\u2588\u2592\u00B7 ',
@@ -213,6 +289,17 @@ const uploadColor = document.getElementById('upload-color');
 const uploadCols = document.getElementById('upload-cols');
 const uploadAspect = document.getElementById('upload-aspect');
 let pendingDeleteIndex = null, photosCache = [];
+
+window.addEventListener('resize', function () {
+  invalidateGalleryCellMetrics();
+  if (photosCache && photosCache.length) renderGallery(photosCache);
+});
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(function () {
+    invalidateGalleryCellMetrics();
+    if (photosCache && photosCache.length) renderGallery(photosCache);
+  });
+}
 
 document.getElementById('upload-btn').addEventListener('click', () => uploadInput.click());
 uploadInput.addEventListener('change', (e) => {
@@ -272,6 +359,7 @@ function getUploadAspectNumber() {
 
 /**
  * 根据当前选项从上传图生成 ASCII，并写入预览；返回生成的字符串。
+ * 缩放：用基准字号下 pre 的实测宽高比计算字号，避免块字符与探测字符字宽不一致导致比例失真。
  * @returns {string}
  */
 function renderUploadPreview() {
@@ -283,20 +371,28 @@ function renderUploadPreview() {
   const ascii = imageToAscii(uploadSrcImg, cols, getUploadAspectNumber(), getUploadCharSet());
   uploadPreviewPre.textContent = ascii;
   uploadPreviewPre.style.color = uploadColor.value;
-  const d = getAsciiDims(ascii);
+  const wrap = document.getElementById('upload-preview-wrap');
   const maxW = Math.min(640, (typeof window !== 'undefined' ? window.innerWidth - 48 : 640));
   const maxH = Math.min(400, typeof window !== 'undefined' ? window.innerHeight * 0.42 : 400);
-  const effW = d.cols * CELL_ASPECT;
-  const effH = d.rows;
-  let fs = Math.min(maxW / effW, maxH / effH, 10);
-  fs = Math.max(2, Math.round(fs * 100) / 100);
+  const pad = wrap ? parseFloat(getComputedStyle(wrap).paddingLeft) * 2 : 24;
+  const availW = Math.max(40, maxW - pad);
+  const availH = Math.max(40, maxH - pad);
+  const BASE = 10;
+  uploadPreviewPre.style.fontSize = BASE + 'px';
+  uploadPreviewPre.style.lineHeight = '1';
+  uploadPreviewPre.style.display = 'inline-block';
+  void uploadPreviewPre.offsetWidth;
+  const w = uploadPreviewPre.offsetWidth;
+  const h = uploadPreviewPre.offsetHeight;
+  const scale = Math.min(availW / Math.max(1, w), availH / Math.max(1, h));
+  let fs = Math.max(2, Math.min(10, Math.round(BASE * scale * 100) / 100));
   uploadPreviewPre.style.fontSize = fs + 'px';
-  uploadPreviewPre.style.lineHeight = fs + 'px';
+  uploadPreviewPre.style.lineHeight = '1';
   return ascii;
 }
 
 /**
- * 将图像按裁剪宽高比与字符集转为 ASCII（行数按 `CELL_ASPECT` 与 camera 一致）。
+ * 将图像按裁剪宽高比与字符集转为 ASCII（行数与 camera 一致：cols×字格比÷宽高比）。
  * @param {HTMLImageElement} img 图像
  * @param {number} cols 列数
  * @param {number|null} forcedAspect 目标宽高比，null 表示跟随原图
@@ -307,9 +403,10 @@ function imageToAscii(img, cols, forcedAspect, chars) {
   const iw = img.naturalWidth;
   const ih = img.naturalHeight;
   if (!iw || !ih) return '';
+  const { cellAspect } = getGalleryAsciiCellMetrics();
   const nativeAspect = iw / ih;
   const aspect = forcedAspect || nativeAspect;
-  const rows = Math.max(1, Math.round(cols * CELL_ASPECT / aspect));
+  const rows = Math.max(1, Math.round((cols * cellAspect) / aspect));
   const canvas = document.createElement('canvas');
   canvas.width = cols;
   canvas.height = rows;
@@ -345,16 +442,22 @@ function imageToAscii(img, cols, forcedAspect, chars) {
 function openLightbox(photo) {
   lightboxPre.textContent = photo.ascii;
   lightboxPre.style.color = photo.color || '#00ff41';
-  const d = getAsciiDims(photo.ascii);
-  const maxW = Math.min(window.innerWidth * 0.88, 960);
-  const maxH = window.innerHeight * 0.78;
-  const effW = d.cols * CELL_ASPECT;
-  const effH = d.rows;
-  let fs = Math.min(maxW / effW, maxH / effH, 14);
-  fs = Math.round(Math.max(2, fs) * 100) / 100;
-  lightboxPre.style.fontSize = fs + 'px';
-  lightboxPre.style.lineHeight = fs + 'px';
+  lightboxPre.style.display = 'inline-block';
+  lightboxPre.style.lineHeight = '1';
   lightbox.classList.add('open');
+  requestAnimationFrame(function () {
+    const maxW = Math.min(window.innerWidth * 0.88, 960) - 48;
+    const maxH = window.innerHeight * 0.78 - 48;
+    const BASE = 10;
+    lightboxPre.style.fontSize = BASE + 'px';
+    void lightboxPre.offsetWidth;
+    const w = lightboxPre.offsetWidth;
+    const h = lightboxPre.offsetHeight;
+    const scale = Math.min(Math.max(40, maxW) / Math.max(1, w), Math.max(40, maxH) / Math.max(1, h));
+    const fs = Math.max(2, Math.min(14, Math.round(BASE * scale * 100) / 100));
+    lightboxPre.style.fontSize = fs + 'px';
+    lightboxPre.style.lineHeight = '1';
+  });
 }
 lightbox.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.classList.remove('open'); });
 document.getElementById('lightbox-close').addEventListener('click', () => lightbox.classList.remove('open'));
@@ -514,11 +617,12 @@ function renderGallery(photos) {
   if (photos.length === 0) { empty.style.display = 'block'; gallery.innerHTML = ''; return; }
   empty.style.display = 'none';
   const thumbBox = 200;
+  const gm = getGalleryAsciiCellMetrics();
   gallery.innerHTML = photos.map((p, i) => {
     const d = getAsciiDims(p.ascii);
     const cols = d.cols;
     const rows = Math.max(1, d.rows);
-    const effW = cols * CELL_ASPECT;
+    const effW = cols * gm.cellAspect;
     const effH = rows;
     const fs = Math.min(thumbBox / effW, thumbBox / effH);
     const fontSize = Math.round(Math.max(0.45, Math.min(fs, 10)) * 100) / 100;
