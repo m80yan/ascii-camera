@@ -6,12 +6,41 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0a0a0a; color: #00ff41; font-family: monospace, ui-monospace, "Cascadia Code", "Courier New", monospace; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 12px; }
-  #camera-shell { width: 100%; max-width: 760px; display: flex; flex-direction: column; align-items: stretch; min-height: calc(100vh - 48px); }
+  /* 设计稿 Frame 48091624：顶栏双按钮与底部四控件同宽、同间距 */
+  #camera-shell {
+    --cam-action-btn-w: 12.5rem;
+    --cam-action-gap: 12px;
+    width: 100%;
+    max-width: 760px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-height: calc(100vh - 48px);
+  }
   h1 { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.6; text-align: center; align-self: center; width: 100%; }
-  /* 设计稿 Frame 48091613：双按钮水平居中 */
-  .cam-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; width: 100%; margin-bottom: 14px; }
-  .cam-actions button { width: 12.5rem; box-sizing: border-box; text-align: center; min-height: 36px; height: 36px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
-  /* 设计稿 Frame 48091615：与取景同宽一行，中间 CAMERA ON，右侧 Flash */
+  .cam-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: var(--cam-action-gap);
+    width: 100%;
+    margin-bottom: 14px;
+  }
+  .cam-actions button {
+    width: var(--cam-action-btn-w);
+    max-width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    min-height: 36px;
+    height: 36px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  /* 与取景器 #ascii-wrap 同宽，Flash 与取景框右缘对齐 */
   .cam-status-row {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -22,8 +51,14 @@
     margin-right: auto;
     margin-bottom: 10px;
     min-height: 28px;
+    box-sizing: border-box;
   }
-  .cam-status-center { grid-column: 2; justify-self: center; }
+  .cam-status-center {
+    grid-column: 2;
+    justify-self: center;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
   /* 自定义 Flash：未选中细线空心方框（Frame 48091615）；选中实心绿块 */
   .flash-switch {
     grid-column: 3;
@@ -77,14 +112,13 @@
   .ctl-stack { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .ctl-stack .ctl-label { font-size: 11px; opacity: 0.5; letter-spacing: 1px; text-align: left; width: 100%; }
   .ctl-stack select { width: 100%; min-width: 0; }
-  /* 底部 2×2：四组均为标签与下拉左对齐（Frame 48091616） */
+  /* 底部 2×2：左列与 Stop Camera 同宽，右列与 Snap & Save 同宽，与顶栏对齐居中（Frame 48091624） */
   .cam-controls-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 28px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--cam-action-gap);
     row-gap: 12px;
-    width: 100%;
-    max-width: 420px;
+    width: min(100%, calc(var(--cam-action-btn-w) * 2 + var(--cam-action-gap)));
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 0;
@@ -92,8 +126,15 @@
     padding-top: 8px;
     align-items: start;
     flex-shrink: 0;
+    box-sizing: border-box;
+    justify-items: stretch;
   }
-  .ctl-stack.cc-left { justify-self: start; width: 100%; max-width: 176px; align-items: stretch; }
+  .cam-controls-grid > .ctl-stack {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    align-items: stretch;
+  }
   button { background: transparent; border: 1px solid #00ff41; color: #00ff41; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; }
   button:hover { background: rgba(0,255,65,0.1); }
   button:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -110,10 +151,11 @@
     transition: opacity 0.04s ease-out;
   }
   #flash-overlay.on { opacity: 1; }
-  #status { font-size: 11px; letter-spacing: 2px; opacity: 0.5; min-height: 22px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; pointer-events: none; text-align: center; }
+  #status { font-size: 11px; letter-spacing: 2px; opacity: 0.5; min-height: 22px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; pointer-events: none; text-align: center; color: inherit; }
   #status.live { color: #00ff41; opacity: 1; }
-  #status .status-dot { display: none; width: 8px; height: 8px; border-radius: 50%; background: #00ff41; box-shadow: 0 0 8px rgba(0,255,65,0.85); flex-shrink: 0; }
-  #status.live .status-dot { display: inline-block; }
+  .status-live-suffix { display: none; align-items: center; flex-shrink: 0; }
+  #status.live .status-live-suffix { display: inline-flex; }
+  #status .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #00ff41; box-shadow: 0 0 8px rgba(0,255,65,0.85); flex-shrink: 0; }
   /* 取景区略收窄并居中，接近设计稿中方块取景比例 */
   #ascii-wrap {
     width: 100%;
@@ -149,7 +191,12 @@
 <div class="cam-status-row">
   <span aria-hidden="true"></span>
   <div class="cam-status-center">
-    <div id="status"><span class="status-text">Offline</span><span class="status-dot" aria-hidden="true"></span></div>
+    <div id="status">
+      <span class="status-text">CAMERA OFF</span>
+      <span class="status-live-suffix" aria-hidden="true">
+        <span class="status-dot"></span>
+      </span>
+    </div>
   </div>
   <label class="flash-switch">
     <input type="checkbox" id="flashToggle" />
@@ -197,9 +244,9 @@
     <select id="aspectPicker">
       <option value="free">Free</option>
       <option value="16:9">16:9</option>
-      <option value="4:3" selected>4:3</option>
+      <option value="4:3">4:3</option>
       <option value="3:4">3:4 (Portrait)</option>
-      <option value="1:1">1:1</option>
+      <option value="1:1" selected>1:1</option>
     </select>
   </label>
 </div>
@@ -495,7 +542,7 @@ async function savePhoto(ascii) {
 
 function setStatusOffline() {
   statusEl.classList.remove('live');
-  statusEl.querySelector('.status-text').textContent = 'Offline';
+  statusEl.querySelector('.status-text').textContent = 'CAMERA OFF';
 }
 
 function setStatusLive() {
@@ -516,7 +563,7 @@ startBtn.addEventListener('click', async () => {
     return;
   }
   try {
-    statusEl.querySelector('.status-text').textContent = 'Requesting...';
+    statusEl.querySelector('.status-text').textContent = 'Requesting…';
     statusEl.classList.remove('live');
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } });
     video.srcObject = stream; await video.play();
