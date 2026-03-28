@@ -2,50 +2,502 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ASCII Camera - Gallery</title>
+<title>Gallery</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0a0a0a; color: #00ff41; font-family: monospace; min-height: 100vh; padding: 24px 16px; }
-  #header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  body { background: #0a0a0a; color: #00ff41; font-family: monospace, ui-monospace, "Courier New", monospace; min-height: 100vh; padding: 24px 16px; }
+  #header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
   h1 { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; opacity: 0.6; }
-  #live-btn { background: transparent; border: 1px solid #ffd700; color: #ffd700; font-family: monospace; font-size: 11px; padding: 6px 16px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; text-decoration: none; display: inline-block; }
+  #header-actions { display: flex; gap: 10px; align-items: center; }
+  .hdr-btn { background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 6px 16px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; text-decoration: none; display: inline-block; border: none; }
+  #upload-btn { border: 1px solid #00ff41; color: #00ff41; }
+  #upload-btn:hover { background: rgba(0,255,65,0.1); }
+  #live-btn { border: 1px solid #ffd700; color: #ffd700; }
   #live-btn:hover { background: rgba(255,215,0,0.1); }
+  #upload-input { display: none; }
   #status { font-size: 11px; letter-spacing: 2px; opacity: 0.4; margin-bottom: 16px; }
   #pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #00ff41; margin-right: 6px; animation: pulse 2s infinite; vertical-align: middle; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
   #empty { text-align: center; opacity: 0.3; margin-top: 80px; font-size: 13px; letter-spacing: 2px; line-height: 2.5; }
-  #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .photo-card { background: #000; border: 1px solid rgba(0,255,65,0.15); border-radius: 4px; overflow: hidden; }
-  .photo-card pre { font-family: monospace; font-size: 3px; line-height: 1.15; letter-spacing: 0.8px; white-space: pre; color: #00ff41; padding: 8px; overflow: hidden; }
-  .photo-meta { padding: 6px 10px; border-top: 1px solid rgba(0,255,65,0.1); display: flex; justify-content: space-between; align-items: center; }
-  .photo-time { font-size: 10px; opacity: 0.4; letter-spacing: 1px; }
-  .delete-btn { background: transparent; border: none; color: #ff4444; font-family: monospace; font-size: 10px; cursor: pointer; opacity: 0.5; letter-spacing: 1px; padding: 0; }
+  #gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; align-items: start; }
+  .photo-card {
+    background: #000;
+    border: 1px solid rgba(0,255,65,0.15);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: zoom-in;
+    transition: border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    aspect-ratio: 1 / 1;
+    min-height: 0;
+    width: 100%;
+  }
+  .photo-card:hover { border-color: rgba(0,255,65,0.5); }
+  .photo-thumb {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+    padding: 4px;
+  }
+  .photo-thumb pre {
+    font-family: monospace, ui-monospace, "Courier New", monospace;
+    white-space: pre;
+    margin: 0;
+    pointer-events: none;
+    display: block;
+    line-height: 1;
+    letter-spacing: 0;
+    flex-shrink: 0;
+  }
+  .photo-meta {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border-top: 1px solid rgba(0,255,65,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+  }
+  .photo-time { font-size: 10px; opacity: 0.4; letter-spacing: 1px; white-space: nowrap; }
+  .delete-btn { background: transparent; border: none; color: #ff4444; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 10px; cursor: pointer; opacity: 0.5; letter-spacing: 1px; padding: 0; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
   .delete-btn:hover { opacity: 1; }
+  #lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 100; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
+  #lightbox.open { display: flex; }
+  #lightbox-inner { max-width: 90vw; max-height: 90vh; overflow: auto; background: #000; border: 1px solid rgba(0,255,65,0.2); border-radius: 4px; padding: 16px; }
+  #lightbox-pre { font-family: monospace, ui-monospace, "Courier New", monospace; letter-spacing: 0; white-space: pre; margin: 0; }
+  #lightbox-close { position: fixed; top: 20px; right: 24px; background: transparent; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 4px 12px; cursor: pointer; letter-spacing: 2px; }
+  #lightbox-close:hover { background: rgba(0,255,65,0.1); }
+  #confirm-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; align-items: center; justify-content: center; }
+  #confirm-modal.open { display: flex; }
+  #confirm-box { background: #111; border: 1px solid rgba(255,68,68,0.4); border-radius: 4px; padding: 28px 32px; text-align: center; }
+  #confirm-box p { font-size: 12px; letter-spacing: 2px; opacity: 0.7; margin-bottom: 20px; line-height: 2; }
+  #confirm-actions { display: flex; gap: 12px; justify-content: center; }
+  .modal-btn { background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 6px 20px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; }
+  #confirm-cancel { border: 1px solid rgba(0,255,65,0.4); color: #00ff41; }
+  #confirm-cancel:hover { background: rgba(0,255,65,0.1); }
+  #confirm-yes { border: 1px solid #ff4444; color: #ff4444; }
+  #confirm-yes:hover { background: rgba(255,68,68,0.1); }
+  #upload-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 150; align-items: center; justify-content: center; padding: 16px; overflow: auto; }
+  #upload-modal.open { display: flex; }
+  #upload-modal-inner { background: #0a0a0a; border: 1px solid rgba(0,255,65,0.35); border-radius: 6px; max-width: 720px; width: 100%; padding: 18px 20px 20px; box-sizing: border-box; }
+  /* 设计稿 Frame 48091616：标题左上，预览区，下方单行四控件（标签在上、左对齐） */
+  #upload-modal-inner h2 { font-size: 12px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; opacity: 0.9; margin: 0 0 14px; text-align: left; color: #00ff41; }
+  #upload-modal-body { display: flex; flex-direction: column; gap: 14px; }
+  #upload-preview-wrap { background: #000; border: 1px solid rgba(0,255,65,0.25); border-radius: 4px; padding: 12px; min-height: 220px; max-height: min(52vh, 460px); overflow: auto; display: flex; justify-content: center; align-items: center; width: 100%; box-sizing: border-box; }
+  #upload-preview-pre { font-family: monospace, ui-monospace, "Courier New", monospace; white-space: pre; letter-spacing: 0; margin: 0; }
+  #upload-editor-controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 16px; width: 100%; align-items: stretch; }
+  .upload-ctl { display: flex; flex-direction: column; gap: 4px; min-width: 0; align-items: stretch; }
+  .upload-ctl-label { font-size: 11px; opacity: 0.55; letter-spacing: 1px; text-align: left; width: 100%; }
+  .upload-ctl select { width: 100%; background: #111; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 6px 8px; cursor: pointer; box-sizing: border-box; }
+  @media (max-width: 640px) {
+    #upload-editor-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  #upload-modal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; margin-top: 4px; padding-top: 4px; }
+  #upload-save-btn { border: 1px solid #ffd700; color: #ffd700; background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 8px 18px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; }
+  #upload-save-btn:hover { background: rgba(255,215,0,0.08); }
+  #upload-cancel-btn { border: 1px solid rgba(0,255,65,0.4); color: #00ff41; background: transparent; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 8px 18px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; }
+  #upload-cancel-btn:hover { background: rgba(0,255,65,0.08); }
+  #upload-src-img { display: none; }
 </style>
 </head>
 <body>
-
 <div id="header">
-  <h1>ASCII Gallery</h1>
-  <a id="live-btn" href="https://ascii-camera-ten.vercel.app/camera.html" target="_blank">📷 Open Camera →</a>
+  <h1>Gallery</h1>
+  <div id="header-actions">
+    <button class="hdr-btn" id="upload-btn" type="button">Upload Image</button>
+    <input type="file" id="upload-input" accept="image/*">
+    <a class="hdr-btn" id="live-btn" href="https://ascii-camera-ten.vercel.app/camera.html" target="_blank">Open Camera</a>
+  </div>
 </div>
-<div id="status"><span id="pulse"></span>Live</div>
-<div id="empty" style="display:none">
-  No photos yet.<br>
-  Open the camera and snap a photo.<br>
-  It will appear here automatically.
-</div>
+<div id="status"><span id="pulse"></span>Polling</div>
+<div id="empty" style="display:none">No photos yet.<br>Open the camera and snap a photo.<br>It will appear here automatically.</div>
 <div id="gallery"></div>
-
+<img id="upload-src-img" alt="">
+<div id="upload-modal" aria-hidden="true">
+  <div id="upload-modal-inner">
+    <h2>Edit &amp; preview</h2>
+    <div id="upload-modal-body">
+      <div id="upload-preview-wrap">
+        <pre id="upload-preview-pre"></pre>
+      </div>
+      <div id="upload-editor-controls">
+        <div class="upload-ctl">
+          <span class="upload-ctl-label">Style</span>
+          <select id="upload-density" aria-label="Style">
+            <option value="detailed">Detailed</option>
+            <option value="simple">Simple</option>
+            <option value="blocks">Blocks</option>
+            <option value="binary">Binary</option>
+          </select>
+        </div>
+        <div class="upload-ctl">
+          <span class="upload-ctl-label">Color</span>
+          <select id="upload-color" aria-label="Color">
+            <option value="#00ff41">Green</option>
+            <option value="#ffffff">White</option>
+            <option value="#ffd700">Amber</option>
+            <option value="#00cfff">Cyan</option>
+            <option value="#ff6b6b">Red</option>
+            <option value="#cc99ff">Purple</option>
+          </select>
+        </div>
+        <div class="upload-ctl">
+          <span class="upload-ctl-label">Resolution</span>
+          <select id="upload-cols" aria-label="Resolution">
+            <option value="80">80</option>
+            <option value="100">100</option>
+            <option value="120" selected>120</option>
+          </select>
+        </div>
+        <div class="upload-ctl">
+          <span class="upload-ctl-label">Aspect</span>
+          <select id="upload-aspect" aria-label="Aspect">
+            <option value="free">Free</option>
+            <option value="16:9">16:9</option>
+            <option value="4:3">4:3</option>
+            <option value="3:4">3:4 (Portrait)</option>
+            <option value="1:1">1:1</option>
+          </select>
+        </div>
+      </div>
+      <div id="upload-modal-actions">
+        <button type="button" id="upload-cancel-btn">Cancel</button>
+        <button type="button" id="upload-save-btn">Add to gallery</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="lightbox">
+  <button type="button" id="lightbox-close">Close</button>
+  <div id="lightbox-inner"><pre id="lightbox-pre"></pre></div>
+</div>
+<div id="confirm-modal">
+  <div id="confirm-box">
+    <p>Delete this photo?<br>This cannot be undone.</p>
+    <div id="confirm-actions">
+      <button type="button" class="modal-btn" id="confirm-cancel">Cancel</button>
+      <button type="button" class="modal-btn" id="confirm-yes">Delete</button>
+    </div>
+  </div>
+</div>
 <script>
 const BIN_ID = '69c615a3b7ec241ddcaa75a2';
 const API_KEY = '$2a$10$qfLFjE./X0/Wk78uVe3mgekvxFDJK7HRh8W29j/DehxdcFQdCMobS';
 const BIN_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
+/** 与 camera.html 一致：等宽字体下单格宽/高约 0.55，用于行数与预览缩放 */
+const CELL_ASPECT = 0.55;
+const CHAR_SETS = {
+  detailed: '\u2588\u2593\u2592\u2591\u00B7 ',
+  simple:   '\u2588\u2592\u00B7 ',
+  blocks:   '\u2588\u2593\u2592\u2591 ',
+  binary:   '\u2588\u2591 '
+};
 const gallery = document.getElementById('gallery');
 const empty = document.getElementById('empty');
-const status = document.getElementById('status');
 const pulse = document.getElementById('pulse');
-let lastCount = -1;
+const lightbox = document.getElementById('lightbox');
+const lightboxPre = document.getElementById('lightbox-pre');
+const confirmModal = document.getElementById('confirm-modal');
+const uploadInput = document.getElementById('upload-input');
+const uploadModal = document.getElementById('upload-modal');
+const uploadSrcImg = document.getElementById('upload-src-img');
+const uploadPreviewPre = document.getElementById('upload-preview-pre');
+const uploadDensity = document.getElementById('upload-density');
+const uploadColor = document.getElementById('upload-color');
+const uploadCols = document.getElementById('upload-cols');
+const uploadAspect = document.getElementById('upload-aspect');
+let pendingDeleteIndex = null, photosCache = [];
+
+document.getElementById('upload-btn').addEventListener('click', () => uploadInput.click());
+uploadInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    uploadSrcImg.onload = () => {
+      uploadModal.classList.add('open');
+      uploadModal.setAttribute('aria-hidden', 'false');
+      renderUploadPreview();
+    };
+    uploadSrcImg.src = /** @type {string} */ (ev.target.result);
+  };
+  reader.readAsDataURL(file);
+  uploadInput.value = '';
+});
+
+uploadDensity.addEventListener('change', () => renderUploadPreview());
+uploadColor.addEventListener('change', () => renderUploadPreview());
+uploadCols.addEventListener('change', () => renderUploadPreview());
+uploadAspect.addEventListener('change', () => renderUploadPreview());
+
+document.getElementById('upload-cancel-btn').addEventListener('click', closeUploadModal);
+document.getElementById('upload-save-btn').addEventListener('click', async () => {
+  const ascii = renderUploadPreview();
+  if (!ascii) return;
+  await savePhoto(ascii, uploadColor.value);
+  closeUploadModal();
+});
+
+function closeUploadModal() {
+  uploadModal.classList.remove('open');
+  uploadModal.setAttribute('aria-hidden', 'true');
+  uploadSrcImg.removeAttribute('src');
+  uploadPreviewPre.textContent = '';
+}
+
+/**
+ * @returns {string}
+ */
+function getUploadCharSet() {
+  return CHAR_SETS[uploadDensity.value] || CHAR_SETS.detailed;
+}
+
+/**
+ * @returns {number|null}
+ */
+function getUploadAspectNumber() {
+  const v = uploadAspect.value;
+  if (v === '16:9') return 16 / 9;
+  if (v === '4:3') return 4 / 3;
+  if (v === '3:4') return 3 / 4;
+  if (v === '1:1') return 1;
+  return null;
+}
+
+/**
+ * 根据当前选项从上传图生成 ASCII，并写入预览；返回生成的字符串。
+ * @returns {string}
+ */
+function renderUploadPreview() {
+  if (!uploadSrcImg.naturalWidth) {
+    uploadPreviewPre.textContent = '';
+    return '';
+  }
+  const cols = parseInt(uploadCols.value, 10) || 120;
+  const ascii = imageToAscii(uploadSrcImg, cols, getUploadAspectNumber(), getUploadCharSet());
+  uploadPreviewPre.textContent = ascii;
+  uploadPreviewPre.style.color = uploadColor.value;
+  const d = getAsciiDims(ascii);
+  const maxW = Math.min(640, (typeof window !== 'undefined' ? window.innerWidth - 48 : 640));
+  const maxH = Math.min(400, typeof window !== 'undefined' ? window.innerHeight * 0.42 : 400);
+  const effW = d.cols * CELL_ASPECT;
+  const effH = d.rows;
+  let fs = Math.min(maxW / effW, maxH / effH, 10);
+  fs = Math.max(2, Math.round(fs * 100) / 100);
+  uploadPreviewPre.style.fontSize = fs + 'px';
+  uploadPreviewPre.style.lineHeight = fs + 'px';
+  return ascii;
+}
+
+/**
+ * 将图像按裁剪宽高比与字符集转为 ASCII（行数按 `CELL_ASPECT` 与 camera 一致）。
+ * @param {HTMLImageElement} img 图像
+ * @param {number} cols 列数
+ * @param {number|null} forcedAspect 目标宽高比，null 表示跟随原图
+ * @param {string} chars 字符集
+ * @returns {string}
+ */
+function imageToAscii(img, cols, forcedAspect, chars) {
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+  if (!iw || !ih) return '';
+  const nativeAspect = iw / ih;
+  const aspect = forcedAspect || nativeAspect;
+  const rows = Math.max(1, Math.round(cols * CELL_ASPECT / aspect));
+  const canvas = document.createElement('canvas');
+  canvas.width = cols;
+  canvas.height = rows;
+  const c = canvas.getContext('2d');
+  if (!c) return '';
+  let sx = 0, sy = 0, sw = iw, sh = ih;
+  if (forcedAspect) {
+    if (nativeAspect > forcedAspect) {
+      sw = Math.round(ih * forcedAspect);
+      sx = Math.round((iw - sw) / 2);
+    } else {
+      sh = Math.round(iw / forcedAspect);
+      sy = Math.round((ih - sh) / 2);
+    }
+  }
+  c.drawImage(img, sx, sy, sw, sh, 0, 0, cols, rows);
+  const pixels = c.getImageData(0, 0, cols, rows).data;
+  let out = '';
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const i = (y * cols + x) * 4;
+      const b = (0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]) / 255;
+      out += chars[Math.max(0, Math.min(Math.floor((1 - b) * (chars.length - 1)), chars.length - 1))];
+    }
+    out += '\n';
+  }
+  return out;
+}
+
+/**
+ * @param {{ascii:string,color?:string,time?:number}} photo
+ */
+function openLightbox(photo) {
+  lightboxPre.textContent = photo.ascii;
+  lightboxPre.style.color = photo.color || '#00ff41';
+  const d = getAsciiDims(photo.ascii);
+  const maxW = Math.min(window.innerWidth * 0.88, 960);
+  const maxH = window.innerHeight * 0.78;
+  const effW = d.cols * CELL_ASPECT;
+  const effH = d.rows;
+  let fs = Math.min(maxW / effW, maxH / effH, 14);
+  fs = Math.round(Math.max(2, fs) * 100) / 100;
+  lightboxPre.style.fontSize = fs + 'px';
+  lightboxPre.style.lineHeight = fs + 'px';
+  lightbox.classList.add('open');
+}
+lightbox.addEventListener('click', (e) => { if (e.target === lightbox) lightbox.classList.remove('open'); });
+document.getElementById('lightbox-close').addEventListener('click', () => lightbox.classList.remove('open'));
+function promptDelete(i) { pendingDeleteIndex = i; confirmModal.classList.add('open'); }
+document.getElementById('confirm-cancel').addEventListener('click', () => { confirmModal.classList.remove('open'); pendingDeleteIndex = null; });
+document.getElementById('confirm-yes').addEventListener('click', () => { confirmModal.classList.remove('open'); if (pendingDeleteIndex !== null) deletePhoto(pendingDeleteIndex); pendingDeleteIndex = null; });
+
+/**
+ * 将字符串转为可安全插入 HTML 的文本（避免 `&`、`<` 等破坏 DOM 或产生 XSS）。
+ * @param {string} s 原始文本
+ * @returns {string} 转义后的文本
+ */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * @param {string} url 请求地址
+ * @param {RequestInit} init fetch 选项
+ * @returns {Promise<Response>}
+ */
+function fetchNoStore(url, init) {
+  return fetch(url, { ...init, cache: 'no-store' });
+}
+
+/** 与 camera 一致：按 UTF-8 字节计 JSONBin 限额；默认绿省略 `color` */
+const MAX_BIN_JSON_BYTES = 99000;
+/** 画廊条数上限：先删旧图再考虑截断 */
+const MAX_PHOTOS_IN_BIN = 6;
+
+/**
+ * @param {{ascii:string,color?:string,time?:number}} p 单条
+ * @returns {{ascii:string,time:number,color?:string}}
+ */
+function normalizePhotoForStorage(p) {
+  const ascii = String(p.ascii || '');
+  const time = typeof p.time === 'number' ? p.time : Date.now();
+  const c = p.color;
+  /** @type {{ascii:string,time:number,color?:string}} */
+  const o = { ascii, time };
+  if (c && c !== '#00ff41') o.color = c;
+  return o;
+}
+
+/**
+ * @param {unknown} obj JSON 对象
+ * @returns {number}
+ */
+function jsonUtf8Bytes(obj) {
+  return new TextEncoder().encode(JSON.stringify(obj)).length;
+}
+
+/**
+ * 按行截断，避免半行导致缩略图宽高比错误。
+ * @param {string} ascii
+ * @param {number} maxChars
+ * @returns {string}
+ */
+function truncateAsciiByMaxChars(ascii, maxChars) {
+  if (ascii.length <= maxChars) return ascii;
+  const lines = ascii.split('\n');
+  while (lines.length > 1 && lines.join('\n').length > maxChars) lines.pop();
+  let s = lines.join('\n');
+  if (s.length > maxChars) s = s.slice(0, maxChars);
+  return s;
+}
+
+/**
+ * @param {Array<{ascii:string,color?:string,time?:number}>} photos
+ * @returns {Array<{ascii:string,time:number,color?:string}>}
+ */
+function clipPhotosForJsonBin(photos) {
+  let list = photos.map(normalizePhotoForStorage);
+  while (list.length > MAX_PHOTOS_IN_BIN) list.pop();
+  while (jsonUtf8Bytes({ photos: list }) > MAX_BIN_JSON_BYTES) {
+    if (list.length > 1) {
+      list.pop();
+      continue;
+    }
+    if (list[0].ascii.length <= 200) break;
+    list[0].ascii = truncateAsciiByMaxChars(list[0].ascii, Math.max(200, Math.floor(list[0].ascii.length * 0.85)));
+  }
+  return list;
+}
+
+/**
+ * @param {string} ascii
+ * @returns {{cols:number,rows:number}}
+ */
+function getAsciiDims(ascii) {
+  const lines = ascii.split('\n').filter(l => l.length > 0);
+  if (!lines.length) return { cols: 120, rows: 1 };
+  const cols = Math.max(...lines.map(l => l.length));
+  const rows = lines.length;
+  return { cols, rows };
+}
+
+/**
+ * @param {string} ascii ASCII 内容
+ * @param {string} [color] 颜色
+ */
+async function savePhoto(ascii, color) {
+  try {
+    const res = await fetchNoStore(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    if (!res.ok) throw new Error('Read failed ' + res.status);
+    const data = await res.json();
+    const photos = Array.isArray(data.record && data.record.photos) ? data.record.photos.slice() : [];
+    photos.unshift({ ascii, color: color || '#00ff41', time: Date.now() });
+    const clipped = clipPhotosForJsonBin(photos);
+    const put = await fetchNoStore(BIN_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+      body: JSON.stringify({ photos: clipped })
+    });
+    if (!put.ok) {
+      const t = await put.text();
+      throw new Error('Write failed ' + put.status + ' ' + t.slice(0, 120));
+    }
+    poll();
+  } catch (e) { console.error(e); }
+}
+
+async function deletePhoto(i) {
+  try {
+    const res = await fetchNoStore(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    if (!res.ok) throw new Error('Read failed ' + res.status);
+    const data = await res.json();
+    const photos = Array.isArray(data.record && data.record.photos) ? data.record.photos.slice() : [];
+    photos.splice(i, 1);
+    const clipped = clipPhotosForJsonBin(photos);
+    const put = await fetchNoStore(BIN_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+      body: JSON.stringify({ photos: clipped })
+    });
+    if (!put.ok) throw new Error('Write failed ' + put.status);
+    poll();
+  } catch (e) { console.error(e); }
+}
 
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -54,51 +506,59 @@ function timeAgo(ts) {
   return Math.floor(s/3600) + 'h ago';
 }
 
-async function deletePhoto(i) {
-  try {
-    const res = await fetch(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
-    const data = await res.json();
-    const photos = data.record.photos || [];
-    photos.splice(i, 1);
-    await fetch(BIN_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
-      body: JSON.stringify({ photos })
+/**
+ * @param {Array<{ascii:string,color?:string,time?:number}>} photos 列表
+ */
+function renderGallery(photos) {
+  photosCache = photos;
+  if (photos.length === 0) { empty.style.display = 'block'; gallery.innerHTML = ''; return; }
+  empty.style.display = 'none';
+  const thumbBox = 200;
+  gallery.innerHTML = photos.map((p, i) => {
+    const d = getAsciiDims(p.ascii);
+    const cols = d.cols;
+    const rows = Math.max(1, d.rows);
+    const effW = cols * CELL_ASPECT;
+    const effH = rows;
+    const fs = Math.min(thumbBox / effW, thumbBox / effH);
+    const fontSize = Math.round(Math.max(0.45, Math.min(fs, 10)) * 100) / 100;
+    return (
+      '<div class="photo-card" data-index="' + i + '">' +
+        '<div class="photo-thumb">' +
+          '<pre style="color:' + (p.color||'#00ff41') + ';font-size:' + fontSize + 'px;line-height:' + fontSize + 'px;">' + escapeHtml(p.ascii) + '</pre>' +
+        '</div>' +
+        '<div class="photo-meta"><span class="photo-time">' + escapeHtml(timeAgo(p.time)) + '</span><button type="button" class="delete-btn" data-index="' + i + '">Delete</button></div>' +
+      '</div>'
+    );
+  }).join('');
+  gallery.querySelectorAll('.photo-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      const t = /** @type {HTMLElement} */ (e.target);
+      if (t.classList.contains('delete-btn')) return;
+      openLightbox(photosCache[parseInt(card.dataset.index, 10)]);
     });
-    lastCount = -1;
-    poll();
-  } catch(e) { console.error(e); }
+  });
+  gallery.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      promptDelete(parseInt(btn.dataset.index, 10));
+    });
+  });
 }
-window.deletePhoto = deletePhoto;
 
+/**
+ * 从 JSONBin 拉取最新照片列表并刷新界面。
+ */
 async function poll() {
   try {
-    const res = await fetch(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    const res = await fetchNoStore(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
     const photos = (data.record && data.record.photos) ? data.record.photos : [];
-    if (photos.length === lastCount) return;
-    lastCount = photos.length;
     pulse.style.background = '#00ff41';
-    if (photos.length === 0) {
-      empty.style.display = 'block';
-      gallery.innerHTML = '';
-      return;
-    }
-    empty.style.display = 'none';
-    gallery.innerHTML = photos.map((p, i) => `
-      <div class="photo-card">
-        <pre>${p.ascii}</pre>
-        <div class="photo-meta">
-          <span class="photo-time">${timeAgo(p.time)}</span>
-          <button class="delete-btn" onclick="deletePhoto(${i})">✕ delete</button>
-        </div>
-      </div>
-    `).join('');
-  } catch(e) {
-    pulse.style.background = '#ff4444';
-  }
+    renderGallery(photos);
+  } catch (e) { pulse.style.background = '#ff4444'; }
 }
-
 poll();
 setInterval(poll, 3000);
 </script>

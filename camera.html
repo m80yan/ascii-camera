@@ -2,59 +2,307 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ASCII Camera - Live</title>
+<title>ASCII Camera</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0a0a0a; color: #00ff41; font-family: monospace; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
-  h1 { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.6; }
-  #controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 16px; }
-  button { background: transparent; border: 1px solid #00ff41; color: #00ff41; font-family: monospace; font-size: 12px; padding: 8px 20px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; }
+  body { background: #0a0a0a; color: #00ff41; font-family: monospace, ui-monospace, "Cascadia Code", "Courier New", monospace; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 12px; }
+  #camera-shell { width: 100%; max-width: 760px; display: flex; flex-direction: column; align-items: stretch; min-height: calc(100vh - 48px); }
+  h1 { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 20px; opacity: 0.6; text-align: center; align-self: center; width: 100%; }
+  /* 设计稿 Frame 48091613：双按钮水平居中 */
+  .cam-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; width: 100%; margin-bottom: 14px; }
+  .cam-actions button { width: 12.5rem; box-sizing: border-box; text-align: center; min-height: 36px; height: 36px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+  /* 设计稿 Frame 48091615：与取景同宽一行，中间 CAMERA ON，右侧 Flash */
+  .cam-status-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    width: 100%;
+    max-width: min(520px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 10px;
+    min-height: 28px;
+  }
+  .cam-status-center { grid-column: 2; justify-self: center; }
+  /* 自定义 Flash：未选中细线空心方框（Frame 48091615）；选中实心绿块 */
+  .flash-switch {
+    grid-column: 3;
+    justify-self: end;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #00ff41;
+    cursor: pointer;
+    user-select: none;
+  }
+  .flash-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+  }
+  .flash-switch-box {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 255, 65, 0.55);
+    border-radius: 1px;
+    background: transparent;
+    box-sizing: border-box;
+  }
+  .flash-switch input:checked + .flash-switch-box {
+    background: #00ff41;
+    border-color: #00ff41;
+    box-shadow: inset 0 0 0 2px #0a0a0a;
+  }
+  .flash-switch input:focus-visible + .flash-switch-box {
+    outline: 1px solid #00ff41;
+    outline-offset: 2px;
+  }
+  .flash-switch-label { line-height: 1; }
+  /* 中间区域伸展，底部四控件始终在视口底部且不随分辨率切换抖动 */
+  .cam-growing {
+    flex: 1 1 auto;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .ctl-stack { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .ctl-stack .ctl-label { font-size: 11px; opacity: 0.5; letter-spacing: 1px; text-align: left; width: 100%; }
+  .ctl-stack select { width: 100%; min-width: 0; }
+  /* 底部 2×2：四组均为标签与下拉左对齐（Frame 48091616） */
+  .cam-controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 28px;
+    row-gap: 12px;
+    width: 100%;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 0;
+    margin-top: auto;
+    padding-top: 8px;
+    align-items: start;
+    flex-shrink: 0;
+  }
+  .ctl-stack.cc-left { justify-self: start; width: 100%; max-width: 176px; align-items: stretch; }
+  button { background: transparent; border: 1px solid #00ff41; color: #00ff41; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; transition: background 0.2s; }
   button:hover { background: rgba(0,255,65,0.1); }
+  button:disabled { opacity: 0.3; cursor: not-allowed; }
   #snapBtn { border-color: #ffd700; color: #ffd700; }
-  #snapBtn:hover { background: rgba(255,215,0,0.1); }
-  #snapBtn:disabled { opacity: 0.3; cursor: not-allowed; }
-  #status { font-size: 11px; letter-spacing: 2px; opacity: 0.5; margin-bottom: 12px; }
+  #snapBtn:hover:not(:disabled) { background: rgba(255,215,0,0.1); }
+  select { background: #111; border: 1px solid rgba(0,255,65,0.3); color: #00ff41; font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 11px; padding: 6px 8px; cursor: pointer; }
+  #flash-overlay {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10000;
+    transition: opacity 0.04s ease-out;
+  }
+  #flash-overlay.on { opacity: 1; }
+  #status { font-size: 11px; letter-spacing: 2px; opacity: 0.5; min-height: 22px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; pointer-events: none; text-align: center; }
   #status.live { color: #00ff41; opacity: 1; }
-  #ascii-out { font-family: monospace; font-size: 5px; line-height: 1.15; letter-spacing: 1.2px; white-space: pre; background: #000; padding: 12px; border-radius: 4px; border: 1px solid rgba(0,255,65,0.15); overflow: hidden; max-width: 700px; width: 100%; }
-  #saved-msg { margin-top: 12px; font-size: 12px; letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; }
+  #status .status-dot { display: none; width: 8px; height: 8px; border-radius: 50%; background: #00ff41; box-shadow: 0 0 8px rgba(0,255,65,0.85); flex-shrink: 0; }
+  #status.live .status-dot { display: inline-block; }
+  /* 取景区略收窄并居中，接近设计稿中方块取景比例 */
+  #ascii-wrap {
+    width: 100%;
+    max-width: min(520px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+    border: 1px solid rgba(0,255,65,0.2);
+    border-radius: 4px;
+    padding: 12px;
+    box-sizing: border-box;
+    min-height: 0;
+    margin-bottom: 4px;
+  }
+  #ascii-out { font-family: monospace, ui-monospace, "Courier New", monospace; font-size: 6px; line-height: 6px; letter-spacing: 0; white-space: pre; display: inline-block; }
+  #saved-msg { margin: 4px 0 0; font-size: 12px; letter-spacing: 2px; opacity: 0; transition: opacity 0.3s; color: #ffd700; min-height: 20px; text-align: center; width: 100%; }
   #saved-msg.show { opacity: 1; }
   video, canvas { display: none; }
 </style>
 </head>
 <body>
-
-<h1>ASCII Camera — Live Mode</h1>
-<div id="controls">
-  <button id="startBtn">Start Camera</button>
-  <button id="snapBtn" disabled>📷 Snap &amp; Save</button>
+<div id="flash-overlay" aria-hidden="true"></div>
+<div id="camera-shell">
+<h1>ASCII Camera</h1>
+<div class="cam-actions">
+  <button id="startBtn" type="button">Start Camera</button>
+  <button id="snapBtn" type="button" disabled>Snap &amp; Save</button>
 </div>
-<div id="status">Offline</div>
+<div class="cam-status-row">
+  <span aria-hidden="true"></span>
+  <div class="cam-status-center">
+    <div id="status"><span class="status-text">Offline</span><span class="status-dot" aria-hidden="true"></span></div>
+  </div>
+  <label class="flash-switch">
+    <input type="checkbox" id="flashToggle" />
+    <span class="flash-switch-box" aria-hidden="true"></span>
+    <span class="flash-switch-label">Flash</span>
+  </label>
+</div>
+<div class="cam-growing">
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas"></canvas>
-<pre id="ascii-out">[ Click "Start Camera" to begin ]</pre>
-<div id="saved-msg" style="color:#ffd700;">✓ Photo saved to gallery</div>
+<div id="ascii-wrap"><pre id="ascii-out">[ Click "Start Camera" to begin ]</pre></div>
+<div id="saved-msg">Saved</div>
+</div>
+<div class="cam-controls-grid">
+  <label class="ctl-stack cc-left">
+    <span class="ctl-label">Style</span>
+    <select id="densityPicker">
+      <option value="detailed">Detailed</option>
+      <option value="simple">Simple</option>
+      <option value="blocks">Blocks</option>
+      <option value="binary">Binary</option>
+    </select>
+  </label>
+  <label class="ctl-stack cc-left">
+    <span class="ctl-label">Color</span>
+    <select id="colorPicker">
+      <option value="#00ff41">Green</option>
+      <option value="#ffffff">White</option>
+      <option value="#ffd700">Amber</option>
+      <option value="#00cfff">Cyan</option>
+      <option value="#ff6b6b">Red</option>
+      <option value="#cc99ff">Purple</option>
+    </select>
+  </label>
+  <label class="ctl-stack cc-left">
+    <span class="ctl-label">Resolution</span>
+    <select id="resPicker">
+      <option value="80">80</option>
+      <option value="100">100</option>
+      <option value="120" selected>120</option>
+    </select>
+  </label>
+  <label class="ctl-stack cc-left">
+    <span class="ctl-label">Aspect</span>
+    <select id="aspectPicker">
+      <option value="free">Free</option>
+      <option value="16:9">16:9</option>
+      <option value="4:3" selected>4:3</option>
+      <option value="3:4">3:4 (Portrait)</option>
+      <option value="1:1">1:1</option>
+    </select>
+  </label>
+</div>
+</div>
 
 <script>
 const BIN_ID = '69c615a3b7ec241ddcaa75a2';
 const API_KEY = '$2a$10$qfLFjE./X0/Wk78uVe3mgekvxFDJK7HRh8W29j/DehxdcFQdCMobS';
 const BIN_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
-const CHARS = '@#S%?*+;:,. ';
+/**
+ * 等宽字体下单格约宽/高≈0.55（随字体略变）。用于从「画面宽高比」换算采样行数，使取景框里 ASCII 的视觉比例与所选 Aspect 一致。
+ */
+const CELL_ASPECT = 0.55;
+/** 与 `#ascii-out` 的 `font-size` 一致，用于按 1:1 行数固定取景框高度 */
+const ASCII_FONT_PX = 6;
+/** 使用块符与点阵，减轻笔画字符宽高差带来的形变 */
+const CHAR_SETS = {
+  detailed: '\u2588\u2593\u2592\u2591\u00B7 ',
+  simple:   '\u2588\u2592\u00B7 ',
+  blocks:   '\u2588\u2593\u2592\u2591 ',
+  binary:   '\u2588\u2591 '
+};
 let stream = null, animId = null;
-
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d', { willReadFrequently: true });
-const out = document.getElementById('ascii-out');
+const video    = document.getElementById('video');
+const canvas   = document.getElementById('canvas');
+const ctx      = canvas.getContext('2d', { willReadFrequently: true });
+const out      = document.getElementById('ascii-out');
+const asciiWrap = document.getElementById('ascii-wrap');
 const startBtn = document.getElementById('startBtn');
-const snapBtn = document.getElementById('snapBtn');
-const status = document.getElementById('status');
+const snapBtn  = document.getElementById('snapBtn');
+const statusEl = document.getElementById('status');
 const savedMsg = document.getElementById('saved-msg');
+const colorPicker    = document.getElementById('colorPicker');
+const densityPicker  = document.getElementById('densityPicker');
+const resPicker      = document.getElementById('resPicker');
+const aspectPicker   = document.getElementById('aspectPicker');
+const flashOverlay   = document.getElementById('flash-overlay');
+const flashToggle    = document.getElementById('flashToggle');
+/** @type {boolean} */
+let snapCountdownActive = false;
 
+/**
+ * 取景框 `#ascii-wrap` 最小高度：按 **3:4 竖屏** 所需行数（自拍竖屏时最高），避免切换 Aspect 时高度抖动。
+ */
+function updateAsciiWrapMinHeight() {
+  const cols = parseInt(resPicker.value, 10) || 120;
+  const rows34 = Math.max(1, Math.round((cols * CELL_ASPECT) / (3 / 4)));
+  const innerPx = rows34 * ASCII_FONT_PX;
+  asciiWrap.style.minHeight = (innerPx + 24) + 'px';
+}
+
+colorPicker.addEventListener('change', () => { out.style.color = colorPicker.value; });
+resPicker.addEventListener('change', updateAsciiWrapMinHeight);
+updateAsciiWrapMinHeight();
+
+/**
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+function getChars() {
+  return CHAR_SETS[densityPicker.value] || CHAR_SETS.detailed;
+}
+
+function getAspectRatio() {
+  const v = aspectPicker.value;
+  if (v === '16:9') return 16 / 9;
+  if (v === '4:3') return 4 / 3;
+  if (v === '3:4') return 3 / 4;
+  if (v === '1:1') return 1;
+  return null;
+}
+
+/**
+ * 将当前视频帧转为 ASCII。采样网格行数按 `CELL_ASPECT` 修正，使屏幕上「列×行」的视觉宽高比接近所选画面比例。
+ * @param {number} cols 列数
+ * @returns {string} ASCII 文本
+ */
 function toAscii(cols) {
-  const rows = Math.floor(cols / 2.1 * (video.videoHeight / video.videoWidth));
+  if (!video.videoWidth || !video.videoHeight) return '';
+  const chars = getChars();
+  const forcedAspect = getAspectRatio();
+  const nativeAspect = video.videoWidth / video.videoHeight;
+  const aspect = forcedAspect || nativeAspect;
+  const rows = Math.max(1, Math.round(cols * CELL_ASPECT / aspect));
   canvas.width = cols; canvas.height = rows;
-  ctx.save(); ctx.translate(cols, 0); ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0, cols, rows);
+  ctx.save();
+  ctx.translate(cols, 0); ctx.scale(-1, 1);
+  if (forcedAspect) {
+    let sx = 0, sy = 0, sw = video.videoWidth, sh = video.videoHeight;
+    if (nativeAspect > forcedAspect) {
+      sw = Math.round(video.videoHeight * forcedAspect);
+      sx = Math.round((video.videoWidth - sw) / 2);
+    } else {
+      sh = Math.round(video.videoWidth / forcedAspect);
+      sy = Math.round((video.videoHeight - sh) / 2);
+    }
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cols, rows);
+  } else {
+    ctx.drawImage(video, 0, 0, cols, rows);
+  }
   ctx.restore();
   const pixels = ctx.getImageData(0, 0, cols, rows).data;
   let result = '';
@@ -62,37 +310,136 @@ function toAscii(cols) {
     for (let x = 0; x < cols; x++) {
       const i = (y * cols + x) * 4;
       const b = (0.299*pixels[i] + 0.587*pixels[i+1] + 0.114*pixels[i+2]) / 255;
-      result += CHARS[Math.max(0, Math.min(Math.floor((1-b)*(CHARS.length-1)), CHARS.length-1))];
+      result += chars[Math.max(0, Math.min(Math.floor((1-b)*(chars.length-1)), chars.length-1))];
     }
     result += '\n';
   }
   return result;
 }
 
-function render() { out.textContent = toAscii(120); animId = requestAnimationFrame(render); }
+function render() {
+  out.textContent = toAscii(parseInt(resPicker.value, 10) || 120);
+  animId = requestAnimationFrame(render);
+}
 
+/**
+ * 跨域请求勿加 Cache-Control/Pragma 自定义头，否则会触发预检且 JSONBin 可能未放行，导致保存失败。仅用 `cache: 'no-store'` 禁用缓存。
+ * @param {string} url 请求地址
+ * @param {RequestInit} init fetch 选项
+ * @returns {Promise<Response>}
+ */
+function fetchNoStore(url, init) {
+  return fetch(url, { ...init, cache: 'no-store' });
+}
+
+/**
+ * JSONBin 免费版按 **UTF-8 字节** 计约 100KB。旧版仅用 ASCII 字符且只有 `ascii+time`，体积小；
+ * 当前块字符（如 █）在 UTF-8 中占 3 字节，若用 `string.length` 估算会误判，易 403。
+ */
+const MAX_BIN_JSON_BYTES = 99000;
+/** 画廊条数上限：先删旧图再考虑截断，避免无谓裁切新照片 */
+const MAX_PHOTOS_IN_BIN = 6;
+
+/**
+ * @param {{ascii:string,color?:string,time?:number}} p 单条
+ * @returns {{ascii:string,time:number,color?:string}} 与旧版一致：默认绿不写 `color` 以省字节
+ */
+function normalizePhotoForStorage(p) {
+  const ascii = String(p.ascii || '');
+  const time = typeof p.time === 'number' ? p.time : Date.now();
+  const c = p.color;
+  /** @type {{ascii:string,time:number,color?:string}} */
+  const o = { ascii, time };
+  if (c && c !== '#00ff41') o.color = c;
+  return o;
+}
+
+/**
+ * @param {unknown} obj JSON 可序列化对象
+ * @returns {number} UTF-8 字节长度
+ */
+function jsonUtf8Bytes(obj) {
+  return new TextEncoder().encode(JSON.stringify(obj)).length;
+}
+
+/**
+ * 按行截断 ASCII，避免半行导致画廊缩略图列宽算错、画面被左右裁切。
+ * @param {string} ascii 原始文本
+ * @param {number} maxChars 最大字符数
+ * @returns {string}
+ */
+function truncateAsciiByMaxChars(ascii, maxChars) {
+  if (ascii.length <= maxChars) return ascii;
+  const lines = ascii.split('\n');
+  while (lines.length > 1 && lines.join('\n').length > maxChars) lines.pop();
+  let s = lines.join('\n');
+  if (s.length > maxChars) s = s.slice(0, maxChars);
+  return s;
+}
+
+/**
+ * 将画廊压入字节额度：不预先截断每条；先限制条数，再删最旧，最后才对**最新一条**按行缩短。
+ * @param {Array<{ascii:string,color?:string,time?:number}>} photos 新照片在前
+ * @returns {Array<{ascii:string,time:number,color?:string}>}
+ */
+function clipPhotosForJsonBin(photos) {
+  let list = photos.map(normalizePhotoForStorage);
+  while (list.length > MAX_PHOTOS_IN_BIN) list.pop();
+  while (jsonUtf8Bytes({ photos: list }) > MAX_BIN_JSON_BYTES) {
+    if (list.length > 1) {
+      list.pop();
+      continue;
+    }
+    if (list[0].ascii.length <= 200) break;
+    list[0].ascii = truncateAsciiByMaxChars(list[0].ascii, Math.max(200, Math.floor(list[0].ascii.length * 0.85)));
+  }
+  return list;
+}
+
+/**
+ * 将当前帧写入 JSONBin 画廊（读-改-写，校验响应状态）。
+ * @param {string} ascii ASCII 内容
+ */
 async function savePhoto(ascii) {
-  savedMsg.textContent = '⏳ Saving...';
+  savedMsg.textContent = 'Saving...';
   savedMsg.style.color = '#aaa';
   savedMsg.classList.add('show');
   try {
-    const getRes = await fetch(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    const getRes = await fetchNoStore(BIN_URL + '/latest', { headers: { 'X-Master-Key': API_KEY } });
+    if (!getRes.ok) throw new Error('Read bin failed: ' + getRes.status);
     const data = await getRes.json();
-    const photos = (data.record && data.record.photos) ? data.record.photos : [];
-    photos.unshift({ ascii, time: Date.now() });
-    if (photos.length > 20) photos.pop();
-    await fetch(BIN_URL, {
+    const photos = Array.isArray(data.record && data.record.photos) ? data.record.photos.slice() : [];
+    photos.unshift({ ascii, color: colorPicker.value, time: Date.now() });
+    const clipped = clipPhotosForJsonBin(photos);
+    const newPhotoTrimmed = !!(clipped[0] && clipped[0].ascii.length < ascii.length);
+    const putRes = await fetchNoStore(BIN_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
-      body: JSON.stringify({ photos })
+      body: JSON.stringify({ photos: clipped })
     });
-    savedMsg.textContent = '✓ Saved to gallery';
+    if (!putRes.ok) {
+      const errText = await putRes.text();
+      throw new Error('Write bin failed: ' + putRes.status + ' ' + errText);
+    }
+    savedMsg.textContent = newPhotoTrimmed ? 'Saved (image trimmed to fit 100KB)' : 'Saved to gallery';
     savedMsg.style.color = '#ffd700';
-  } catch(e) {
-    savedMsg.textContent = '✕ Save failed';
+  } catch (e) {
+    console.error(e);
+    const hint = e && e.message ? String(e.message).slice(0, 72) : '';
+    savedMsg.textContent = hint ? ('Save failed — ' + hint) : 'Save failed';
     savedMsg.style.color = '#ff4444';
   }
   setTimeout(() => savedMsg.classList.remove('show'), 2500);
+}
+
+function setStatusOffline() {
+  statusEl.classList.remove('live');
+  statusEl.querySelector('.status-text').textContent = 'Offline';
+}
+
+function setStatusLive() {
+  statusEl.classList.add('live');
+  statusEl.querySelector('.status-text').textContent = 'CAMERA ON';
 }
 
 startBtn.addEventListener('click', async () => {
@@ -101,25 +448,60 @@ startBtn.addEventListener('click', async () => {
     stream = null; cancelAnimationFrame(animId);
     startBtn.textContent = 'Start Camera';
     snapBtn.disabled = true;
-    status.textContent = 'Offline'; status.className = '';
+    snapCountdownActive = false;
+    snapBtn.textContent = 'Snap & Save';
+    setStatusOffline();
     out.textContent = '[ Click "Start Camera" to begin ]';
     return;
   }
   try {
-    status.textContent = 'Requesting...';
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    statusEl.querySelector('.status-text').textContent = 'Requesting...';
+    statusEl.classList.remove('live');
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } });
     video.srcObject = stream; await video.play();
     startBtn.textContent = 'Stop Camera';
     snapBtn.disabled = false;
-    status.textContent = 'Live ●'; status.className = 'live';
+    setStatusLive();
+    out.style.color = colorPicker.value;
     render();
-  } catch(e) {
-    status.textContent = 'Access denied';
+  } catch (e) {
+    setStatusOffline();
+    statusEl.querySelector('.status-text').textContent = 'Access denied';
     out.textContent = '[ Camera access denied ]';
   }
 });
 
-snapBtn.addEventListener('click', () => savePhoto(toAscii(120)));
+/**
+ * 3 秒倒计时（按钮显示 3→2→1）；勾选 Flash 时仅在最后 1 秒（显示「1」）全白遮罩；结束后抓拍并写入画廊。
+ */
+snapBtn.addEventListener('click', async () => {
+  if (!stream || snapCountdownActive) return;
+  const cols = parseInt(resPicker.value, 10) || 120;
+  const labelBackup = snapBtn.textContent;
+  const ctl = [densityPicker, colorPicker, resPicker, aspectPicker];
+  snapCountdownActive = true;
+  snapBtn.disabled = true;
+  startBtn.disabled = true;
+  ctl.forEach(function (el) { el.disabled = true; });
+  const useFlash = flashToggle.checked;
+  try {
+    for (let n = 3; n >= 1; n--) {
+      snapBtn.textContent = String(n);
+      if (useFlash && n === 1) flashOverlay.classList.add('on');
+      await sleep(1000);
+      if (useFlash && n === 1) flashOverlay.classList.remove('on');
+    }
+    snapBtn.textContent = 'Saving...';
+    await savePhoto(toAscii(cols));
+  } finally {
+    flashOverlay.classList.remove('on');
+    snapBtn.textContent = labelBackup;
+    snapCountdownActive = false;
+    snapBtn.disabled = !stream;
+    startBtn.disabled = false;
+    ctl.forEach(function (el) { el.disabled = false; });
+  }
+});
 </script>
 </body>
 </html>
